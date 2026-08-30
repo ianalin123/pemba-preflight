@@ -565,6 +565,7 @@ function drawSchematic(container, layout, joints) {
 // ---------- side panel ----------
 function formatZ(z) {
   if (!Number.isFinite(z)) return "?";
+  if (z >= 1000) return "> 1000";
   return z >= 100 ? z.toFixed(0) : z >= 10 ? z.toFixed(1) : z.toFixed(2);
 }
 
