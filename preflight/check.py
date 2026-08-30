@@ -136,8 +136,9 @@ def main():
                         help="Path for JSON results dump")
     args = parser.parse_args()
 
-    # Resolve probes
-    probes = [p for p in G1_PROBES if p.joint in args.joints]
+    # Resolve probes (G1 + SO-101 share the same JointProbe/trace schema)
+    from preflight.real.so101_probe import SO101_PROBES
+    probes = [p for p in [*G1_PROBES, *SO101_PROBES] if p.joint in args.joints]
     if not probes:
         sys.exit(f"[check] No matching probes for joints: {args.joints}")
 
