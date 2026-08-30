@@ -19,6 +19,9 @@ voice = [
     "livekit-agents[openai,silero,deepgram,turn-detector]~=1.0",
     "python-dotenv>=1.0",
 ]
+so101 = [
+    "lerobot[feetech]>=0.4.4",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

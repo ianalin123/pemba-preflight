@@ -31,6 +31,7 @@ COUNT_CENTER = 2048                     # VERIFY on rig: mid-range after lerobot
 COUNT_EDGE_MARGIN = 96                  # keep goals away from the 0/4095 hard stops
 PROBE_P_COEFFICIENT = 8                 # VERIFY on rig: stock P_Coefficient (lerobot so_follower writes 16; factory 32)
 LOAD_SIGN_BIT = 0x400                   # VERIFY on rig: Present_Load = 10-bit magnitude, bit 10 = direction
+RETRIES = 3                             # venue serial adapters drop ACKs; retry every bus op
 LOAD_SCALE = 1000.0                     # tau normalized to roughly [-1, 1] (load is ‰ of stall torque)
 
 SO101_MOTOR_IDS = {  # VERIFY on rig: default lerobot-setup-motors ID assignment (gripper=6, skipped)
@@ -65,32 +66,33 @@ class SO101Bus:
             for name, mid in SO101_MOTOR_IDS.items()
         }
         self._bus = FeetechMotorsBus(port=port, motors=motors)
-        self._bus.connect()  # VERIFY on rig: pings all IDs; uncalibrated is OK since every read/write is normalize=False
+        self._bus.connect()
         self._orig_p: dict[str, int] = {}
-        self._bus.enable_torque()
+        # venue serial adapters drop ACKs regularly — retry every bus op
+        self._bus.enable_torque(num_retry=RETRIES)
 
     def read(self, joint: str) -> tuple[float, float]:
-        raw_q = float(self._bus.read("Present_Position", joint, normalize=False))
-        raw_load = int(self._bus.read("Present_Load", joint, normalize=False))
+        raw_q = float(self._bus.read("Present_Position", joint, normalize=False, num_retry=RETRIES))
+        raw_load = int(self._bus.read("Present_Load", joint, normalize=False, num_retry=RETRIES))
         sign = -1.0 if raw_load & LOAD_SIGN_BIT else 1.0
         tau = sign * (raw_load & (LOAD_SIGN_BIT - 1)) / LOAD_SCALE
         return (raw_q - COUNT_CENTER) / COUNTS_PER_RAD, tau
 
     def read_temp(self, joint: str) -> float:
-        return float(self._bus.read("Present_Temperature", joint, normalize=False))
+        return float(self._bus.read("Present_Temperature", joint, normalize=False, num_retry=RETRIES))
 
     def write_goal(self, joint: str, q_rad: float):
         counts = int(round(COUNT_CENTER + q_rad * COUNTS_PER_RAD))
         counts = max(COUNT_EDGE_MARGIN, min(4095 - COUNT_EDGE_MARGIN, counts))
-        self._bus.write("Goal_Position", joint, counts, normalize=False)
+        self._bus.write("Goal_Position", joint, counts, normalize=False, num_retry=RETRIES)
 
     def lower_gains(self, joints: list[str]):
         # VERIFY on rig: P_Coefficient is EEPROM; lerobot so_follower writes it
         # inside torque_disabled(). Arm must be at rest for this brief window.
         with self._bus.torque_disabled():
             for j in joints:
-                self._orig_p[j] = int(self._bus.read("P_Coefficient", j, normalize=False))
-                self._bus.write("P_Coefficient", j, PROBE_P_COEFFICIENT, normalize=False)
+                self._orig_p[j] = int(self._bus.read("P_Coefficient", j, normalize=False, num_retry=RETRIES))
+                self._bus.write("P_Coefficient", j, PROBE_P_COEFFICIENT, normalize=False, num_retry=RETRIES)
         print(f"P lowered to {PROBE_P_COEFFICIENT} (originals: {self._orig_p})")
 
     def restore_gains(self):
@@ -98,7 +100,7 @@ class SO101Bus:
             return
         with self._bus.torque_disabled():  # <100 ms torque-off; hold() re-asserts goals right after
             for j, p in self._orig_p.items():
-                self._bus.write("P_Coefficient", j, p, normalize=False)
+                self._bus.write("P_Coefficient", j, p, normalize=False, num_retry=RETRIES)
         print(f"P restored: {self._orig_p}")
         self._orig_p = {}
 
