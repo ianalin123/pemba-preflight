@@ -166,6 +166,8 @@ def main():
         sys.exit(1)
     signal.signal(signal.SIGINT, on_sig)
     signal.signal(signal.SIGTERM, on_sig)
+    if hasattr(signal, "SIGHUP"):  # ssh/VPN drop must still damp
+        signal.signal(signal.SIGHUP, on_sig)
 
     if args.mock:
         from preflight.real.mock_lowlevel import MockRobot
