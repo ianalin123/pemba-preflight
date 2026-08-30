@@ -1,9 +1,10 @@
+import sys
 from pathlib import Path
 import numpy as np
 from preflight.fit_baseline import load_features
 from preflight.anomaly import AnomalyModel, THRESHOLD
 
-b = load_features(Path("data/d1_cold"))
+b = load_features(Path(sys.argv[1] if len(sys.argv) > 1 else "data/d1_cold"))
 fails = 0
 total = 0
 zs = []
