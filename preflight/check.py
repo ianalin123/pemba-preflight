@@ -194,10 +194,10 @@ def main():
                 cls, severity = "healthy", 0.0
             else:
                 # Tier-2 classification
-                if tier2:
+                joints_list = tier2["joints"] if tier2 else []
+                if tier2 and p.joint in joints_list:
                     import numpy as np
-                    joints_list = tier2["joints"]
-                    j_idx = joints_list.index(p.joint) if p.joint in joints_list else 0
+                    j_idx = joints_list.index(p.joint)
                     vec = list(feat.values()) + [j_idx, pose]
                     cls = str(tier2["clf"].predict([vec])[0])
                     severity = float(tier2["reg"].predict([vec])[0])

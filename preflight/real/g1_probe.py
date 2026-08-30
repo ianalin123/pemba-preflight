@@ -10,6 +10,7 @@ Usage:  python3 g1_probe.py --out data/d1_baseline_run01 [--joints left_knee_joi
 """
 import argparse
 import json
+import math
 import signal
 import sys
 import time
@@ -100,6 +101,10 @@ def probe_joint(bot, name: str, pose_offset: float, out: Path):
     idx = G1_JOINT_INDEX[name]
     bot.snapshot_hold()
     q_start, *_ = bot.read(idx)
+    if not math.isfinite(q_start) or not (-math.pi <= q_start <= math.pi):
+        print(f"WARNING: {name} q_start={q_start!r} is non-finite or out of [-π, π] — damping and aborting")
+        bot.damp_all()
+        raise RuntimeError(f"Unsafe q_start={q_start!r} for joint {name}")
     q0 = q_start + pose_offset
     # ramp gently to q0 over 2 s
     for i in range(int(2.0 / DT)):
@@ -134,29 +139,36 @@ def main():
     args = ap.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
 
+    bot = None
+
+    def on_sig(sig, frame):
+        print(f"\n{signal.Signals(sig).name} → damping all joints")
+        if bot is not None:
+            for _ in range(10):          # repeated sends so a full damp write lands last
+                bot.damp_all()
+                time.sleep(0.02)
+        sys.exit(1)
+    signal.signal(signal.SIGINT, on_sig)
+    signal.signal(signal.SIGTERM, on_sig)
+
     if args.mock:
         from preflight.real.mock_lowlevel import MockRobot
         bot = MockRobot()
     else:
         bot = Robot(args.iface)
 
-    def on_sig(sig, frame):
-        print("\nSIGINT → damping all joints")
+    try:
+        probes = [p for p in G1_PROBES if args.joints is None or p.joint in args.joints]
+        meta = {"start": time.time(), "reps": args.reps, "joints": [p.joint for p in probes]}
+        for rep in range(args.reps):
+            print(f"rep {rep+1}/{args.reps}")
+            for p in probes:
+                for off in (p.neutral_offset, p.loaded_offset):
+                    probe_joint(bot, p.joint, off, out)
+        (out / "meta.json").write_text(json.dumps(meta))
+    finally:
         bot.damp_all()
-        sys.exit(1)
-    signal.signal(signal.SIGINT, on_sig)
-    signal.signal(signal.SIGTERM, on_sig)
-
-    probes = [p for p in G1_PROBES if args.joints is None or p.joint in args.joints]
-    meta = {"start": time.time(), "reps": args.reps, "joints": [p.joint for p in probes]}
-    for rep in range(args.reps):
-        print(f"rep {rep+1}/{args.reps}")
-        for p in probes:
-            for off in (p.neutral_offset, p.loaded_offset):
-                probe_joint(bot, p.joint, off, out)
-    (out / "meta.json").write_text(json.dumps(meta))
-    bot.damp_all()
-    print("session complete, robot damped")
+        print("robot damped")
 
 
 if __name__ == "__main__":
