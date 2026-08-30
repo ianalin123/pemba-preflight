@@ -6,6 +6,7 @@ TEMPLATES = {
     "stiffness": "{joint}: {sev} stiffness — lubricant may be cold; warm up before walking.",
     "obstruction": "{joint}: motion obstructed ({sev}) — check for transport lock or snag.",
     "derate": "{joint}: {sev} torque deficit — motor derating, check temperature and battery.",
+    "unknown": "{joint}: {sev} anomaly detected — cause unclassified, inspect before walking.",
 }
 
 
