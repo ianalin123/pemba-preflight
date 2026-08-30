@@ -45,10 +45,21 @@ class Robot:
 
     def __init__(self, iface: str = "eth0"):
         from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher, ChannelSubscriber
+        from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
         from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
         from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_, LowState_
         from unitree_sdk2py.utils.crc import CRC
         ChannelFactoryInitialize(0, iface)
+        # release the built-in motion service or lowcmd is ignored (SDK example flow)
+        msc = MotionSwitcherClient()
+        msc.SetTimeout(5.0)
+        msc.Init()
+        status, result = msc.CheckMode()
+        while result is not None and result.get("name"):
+            print(f"releasing motion mode {result['name']!r}…")
+            msc.ReleaseMode()
+            time.sleep(1.0)
+            status, result = msc.CheckMode()
         self._crc = CRC()
         self._cmd = unitree_hg_msg_dds__LowCmd_()
         self._pub = ChannelPublisher("rt/lowcmd", LowCmd_)
@@ -58,6 +69,7 @@ class Robot:
         self._sub.Init(self._on_state, 10)
         while self._state is None:
             time.sleep(0.05)
+        self._mode_machine = self._state.mode_machine
 
     def _on_state(self, msg):
         self._state = msg
@@ -70,6 +82,8 @@ class Robot:
         return [self._state.motor_state[i].q for i in range(29)]
 
     def command(self, targets: dict[int, float], kp: dict[int, float], kd: dict[int, float]):
+        self._cmd.mode_pr = 0  # Mode.PR: series pitch/roll ankle control
+        self._cmd.mode_machine = self._mode_machine
         for i in range(29):
             mc = self._cmd.motor_cmd[i]
             mc.mode = 1
@@ -85,6 +99,8 @@ class Robot:
         self._hold_q = self.read_all_q()
 
     def damp_all(self):
+        self._cmd.mode_pr = 0
+        self._cmd.mode_machine = self._mode_machine
         for i in range(29):
             mc = self._cmd.motor_cmd[i]
             mc.mode = 1
