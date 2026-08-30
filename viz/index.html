@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<!--
+  PEMBA PRE-FLIGHT — joint-fault visualization
+  Serve:  python3 -m http.server 8787 -d viz    then open http://localhost:8787
+  Reads ./results.json (written by `uv run python -m preflight.check ... --json viz/results.json`).
+  Polls every 2 s so you can leave this open and re-run checks live.
+  Single file, no external deps — venue wifi is flaky.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PEMBA PRE-FLIGHT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121820;
+    --line: #23303d;
+    --ink: #cfe3ee;
+    --dim: #5f7688;
+    --green: #3ddc84;
+    --red: #ff4d4f;
+    --amber: #ffb347;
+    --accent: #7fd4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #16212c 0%, var(--bg) 60%);
+    color: var(--ink);
+    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    padding: 18px 28px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: var(--ink);
+  }
+  header h1 .peak { color: var(--accent); }
+  header .sub { color: var(--dim); font-size: 12px; }
+  header .meta { margin-left: auto; color: var(--dim); font-size: 12px; text-align: right; }
+
+  #banner {
+    margin: 18px 28px 0;
+    padding: 18px 24px;
+    border-radius: 6px;
+    font-size: clamp(26px, 4vw, 44px);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-align: center;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--dim);
+  }
+  #banner.pass {
+    color: var(--green);
+    border-color: rgba(61, 220, 132, 0.55);
+    background: rgba(61, 220, 132, 0.08);
+    text-shadow: 0 0 24px rgba(61, 220, 132, 0.35);
+  }
+  #banner.nogo {
+    color: var(--red);
+    border-color: rgba(255, 77, 79, 0.6);
+    background: rgba(255, 77, 79, 0.08);
+    text-shadow: 0 0 24px rgba(255, 77, 79, 0.4);
+    animation: bannerblink 1.6s ease-in-out infinite;
+  }
+  @keyframes bannerblink {
+    0%, 100% { box-shadow: 0 0 0 rgba(255, 77, 79, 0); }
+    50% { box-shadow: 0 0 30px rgba(255, 77, 79, 0.25); }
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 460px;
+    gap: 18px;
+    padding: 18px 28px 28px;
+    align-items: stretch;
+  }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .card h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  #schematic-card { display: flex; flex-direction: column; }
+  #schematic { flex: 1; min-height: 420px; }
+  #schematic svg { width: 100%; height: 100%; display: block; }
+
+  /* SVG joint styling */
+  .bone { stroke: #3a4c5e; stroke-width: 7; stroke-linecap: round; fill: none; }
+  .bone-thin { stroke: #3a4c5e; stroke-width: 4; stroke-linecap: round; fill: none; }
+  .chassis { fill: #1b2531; stroke: #3a4c5e; stroke-width: 2; }
+  .joint-healthy { fill: var(--green); }
+  .joint-fault { fill: var(--red); }
+  .joint-unknown { fill: var(--amber); }
+  .joint-ring { fill: none; stroke: #0b0f14; stroke-width: 2; }
+  .halo {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: pulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.75; transform: scale(1); }
+    50%      { opacity: 0.1;  transform: scale(2.4); }
+  }
+  .jlabel { font-family: inherit; font-size: 13px; fill: var(--ink); }
+  .jlabel .cls-fault { fill: var(--red); font-weight: 700; }
+  .jlabel .cls-unknown { fill: var(--amber); font-weight: 700; }
+  .jlabel-dim { font-family: inherit; font-size: 11px; fill: var(--dim); }
+  .svg-caption { font-family: inherit; font-size: 11px; fill: var(--dim); letter-spacing: 0.2em; }
+
+  /* Side panel table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; color: var(--dim); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 4px 8px 8px 0; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 7px 8px 7px 0; border-bottom: 1px solid #182129; vertical-align: middle; }
+  td.jname { white-space: nowrap; }
+  td.zval { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-healthy { color: var(--green); }
+  .st-fault { color: var(--red); font-weight: 700; }
+  .st-unknown { color: var(--amber); font-weight: 700; }
+  .zbar-wrap {
+    position: relative; height: 12px; width: 100%;
+    background: #0d1319; border: 1px solid var(--line); border-radius: 2px;
+    overflow: hidden;
+  }
+  .zbar { position: absolute; inset: 0 auto 0 0; border-radius: 1px; }
+  .zbar.healthy { background: linear-gradient(90deg, #1d7a4c, var(--green)); }
+  .zbar.fault { background: linear-gradient(90deg, #8a2426, var(--red)); }
+  .zbar.unknown { background: linear-gradient(90deg, #8a6423, var(--amber)); }
+  .zthresh {
+    position: absolute; top: -2px; bottom: -2px; width: 2px;
+    background: var(--ink); opacity: 0.8;
+  }
+  .legend { margin-top: 10px; color: var(--dim); font-size: 11px; }
+
+  #waiting {
+    margin: 60px auto; max-width: 640px; text-align: center;
+    color: var(--dim); font-size: 18px; letter-spacing: 0.1em;
+  }
+  #waiting .dot { animation: blinkdots 1.4s infinite; }
+  #waiting .dot:nth-child(2) { animation-delay: 0.2s; }
+  #waiting .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blinkdots { 0%,100% { opacity: 0.15; } 50% { opacity: 1; } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PEMBA <span class="peak">&#9650;</span> PRE-FLIGHT</h1>
+  <div class="sub">60 s proprioceptive self-check &middot; basecamp instrument panel</div>
+  <div class="meta">
+    <div id="robot-name">&mdash;</div>
+    <div id="updated">no data</div>
+  </div>
+</header>
+
+<div id="waiting">
+  waiting for check results<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+  <div style="font-size:12px; margin-top:14px;">
+    run: uv run python -m preflight.check ... --json viz/results.json
+  </div>
+</div>
+
+<div id="content" class="hidden">
+  <div id="banner">&mdash;</div>
+  <main>
+    <section class="card" id="schematic-card">
+      <h2 id="schematic-title">Airframe</h2>
+      <div id="schematic"></div>
+    </section>
+    <section class="card">
+      <h2>Joint Telemetry &mdash; worst-pose z-score</h2>
+      <table>
+        <thead>
+          <tr><th>Joint</th><th>Status</th><th style="width:45%">|z| (log scale)</th><th style="text-align:right">z</th></tr>
+        </thead>
+        <tbody id="ztable"></tbody>
+      </table>
+      <div class="legend">threshold line at z = 6 &middot; bar scale log(1+z), full at z = 1000</div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+
+const THRESHOLD = 6;
+const Z_FULL = Math.log10(1 + 1000);   // bar full-scale
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+const SO101_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"];
+
+// ---------- schematic layouts ----------
+// G1 front view: robot-left drawn on viewer-right (facing the audience).
+const G1_LAYOUT = {
+  viewBox: "0 0 460 560",
+  caption: "UNITREE G1 — FRONT VIEW",
+  bones: [
+    // torso spine + pelvis + shoulder bar
+    ["M230 96 L230 268"],
+    ["M172 130 L288 130"],                   // clavicle bar
+    ["M196 280 L264 280"],                   // pelvis bar
+    // robot-left arm (viewer right)
+    ["M288 130 L318 205 L332 272"],
+    // robot-right arm (viewer left)
+    ["M172 130 L142 205 L128 272"],
+    // robot-left leg (viewer right)
+    ["M264 280 L272 382 L276 478 L300 478"],
+    // robot-right leg (viewer left)
+    ["M196 280 L188 382 L184 478 L160 478"],
+  ],
+  head: { cx: 230, cy: 62, r: 24 },
+  joints: {
+    waist_yaw_joint:            { x: 230, y: 232, side: "right" },
+    left_shoulder_pitch_joint:  { x: 288, y: 130, side: "right" },
+    right_shoulder_pitch_joint: { x: 172, y: 130, side: "left" },
+    left_elbow_joint:           { x: 318, y: 205, side: "right" },
+    right_elbow_joint:          { x: 142, y: 205, side: "left" },
+    left_hip_pitch_joint:       { x: 264, y: 280, side: "right" },
+    right_hip_pitch_joint:      { x: 196, y: 280, side: "left" },
+    left_knee_joint:            { x: 272, y: 382, side: "right" },
+    right_knee_joint:           { x: 188, y: 382, side: "left" },
+    left_ankle_pitch_joint:     { x: 276, y: 462, side: "right" },
+    right_ankle_pitch_joint:    { x: 184, y: 462, side: "left" },
+  },
+};
+
+// SO-101 side view: base at lower-left, arm reaches up and out to gripper.
+const SO101_LAYOUT = {
+  viewBox: "0 0 460 560",
+  caption: "SO-101 ARM — SIDE VIEW",
+  base: { x: 50, y: 470, w: 130, h: 26 },
+  bones: [
+    ["M115 470 L115 430"],                  // base column
+    ["M115 430 L115 372"],                  // pan -> lift
+    ["M115 372 L215 210"],                  // upper arm
+    ["M215 210 L330 285"],                  // forearm
+    ["M330 285 L378 322"],                  // wrist link
+    ["M378 322 L412 348"],                  // roll -> gripper
+    ["M412 348 L438 336", "thin"],          // gripper claw
+    ["M412 348 L432 372", "thin"],
+  ],
+  joints: {
+    shoulder_pan:  { x: 115, y: 430, side: "right" },
+    shoulder_lift: { x: 115, y: 372, side: "left" },
+    elbow_flex:    { x: 215, y: 210, side: "right" },
+    wrist_flex:    { x: 330, y: 285, side: "right" },
+    wrist_roll:    { x: 378, y: 322, side: "right" },
+  },
+};
+
+// ---------- data shaping ----------
+function shortName(joint) {
+  return String(joint).replace(/_joint$/, "").replace(/_/g, " ");
+}
+
+function statusOf(cls) {
+  if (cls === "healthy") return "healthy";
+  if (cls === "unknown") return "unknown";
+  return "fault";
+}
+
+function shapeResults(data) {
+  const verdicts = Array.isArray(data && data.verdicts) ? data.verdicts : [];
+  const details = Array.isArray(data && data.details) ? data.details : [];
+
+  const joints = new Map();  // name -> {cls, severity, z}
+  for (const v of verdicts) {
+    if (!Array.isArray(v) || v.length < 2) continue;
+    const [joint, cls, severity] = v;
+    joints.set(String(joint), {
+      cls: String(cls || "unknown"),
+      severity: Number(severity) || 0,
+      z: 0,
+    });
+  }
+  for (const d of details) {
+    if (!d || typeof d.joint !== "string") continue;
+    const entry = joints.get(d.joint) ||
+      joints.set(d.joint, { cls: String(d.cls || "unknown"), severity: Number(d.severity) || 0, z: 0 }).get(d.joint);
+    const z = Math.abs(Number(d.z_score));
+    if (Number.isFinite(z) && z > entry.z) entry.z = z;
+  }
+
+  const names = [...joints.keys()];
+  const isSO101 = names.some(n => SO101_JOINTS.includes(n));
+  const faults = [...joints.values()].filter(j => j.cls !== "healthy").length;
+  return { joints, isSO101, faults };
+}
+
+// ---------- SVG helpers ----------
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function drawJoint(svg, pos, name, info) {
+  const status = statusOf(info.cls);
+  const color = status === "healthy" ? "var(--green)" : status === "fault" ? "var(--red)" : "var(--amber)";
+
+  if (status !== "healthy") {
+    const halo = el("circle", {
+      cx: pos.x, cy: pos.y, r: 13,
+      fill: color, filter: "url(#soft-blur)", class: "halo",
+    }, svg);
+    halo.style.animationDelay = ((pos.x + pos.y) % 7) / 10 + "s";
+  }
+  el("circle", { cx: pos.x, cy: pos.y, r: 9, class: "joint-" + status }, svg);
+  el("circle", { cx: pos.x, cy: pos.y, r: 9, class: "joint-ring" }, svg);
+
+  if (status !== "healthy") {
+    const onRight = pos.side !== "left";
+    const tx = pos.x + (onRight ? 20 : -20);
+    const anchor = onRight ? "start" : "end";
+    const label = el("text", { x: tx, y: pos.y - 2, "text-anchor": anchor, class: "jlabel" }, svg);
+    const t1 = el("tspan", {}, label);
+    t1.textContent = shortName(name) + " · ";
+    const t2 = el("tspan", { class: "cls-" + status }, label);
+    t2.textContent = info.cls + " " + info.severity.toFixed(1);
+    const zline = el("text", { x: tx, y: pos.y + 14, "text-anchor": anchor, class: "jlabel-dim" }, svg);
+    zline.textContent = "z = " + formatZ(info.z);
+  }
+}
+
+function drawSchematic(container, layout, joints) {
+  container.textContent = "";
+  const svg = el("svg", { viewBox: layout.viewBox, preserveAspectRatio: "xMidYMid meet" });
+
+  const defs = el("defs", {}, svg);
+  const filter = el("filter", { id: "soft-blur", x: "-150%", y: "-150%", width: "400%", height: "400%" }, defs);
+  el("feGaussianBlur", { stdDeviation: 5 }, filter);
+
+  if (layout.base) {
+    el("rect", { x: layout.base.x, y: layout.base.y, width: layout.base.w, height: layout.base.h, rx: 4, class: "chassis" }, svg);
+  }
+  for (const [d, style] of layout.bones) {
+    el("path", { d, class: style === "thin" ? "bone-thin" : "bone" }, svg);
+  }
+  if (layout.head) {
+    el("circle", { cx: layout.head.cx, cy: layout.head.cy, r: layout.head.r, class: "chassis" }, svg);
+    el("path", { d: `M${layout.head.cx} ${layout.head.cy + layout.head.r} L${layout.head.cx} ${layout.head.cy + layout.head.r + 10}`, class: "bone-thin" }, svg);
+  }
+  const cap = el("text", { x: 230, y: 545, "text-anchor": "middle", class: "svg-caption" }, svg);
+  cap.textContent = layout.caption;
+
+  // draw probed joints that have layout coords; unknown-position joints are skipped
+  for (const [name, info] of joints) {
+    const pos = layout.joints[name];
+    if (pos) drawJoint(svg, pos, name, info);
+  }
+  container.appendChild(svg);
+}
+
+// ---------- side panel ----------
+function formatZ(z) {
+  if (!Number.isFinite(z)) return "?";
+  return z >= 100 ? z.toFixed(0) : z >= 10 ? z.toFixed(1) : z.toFixed(2);
+}
+
+function renderTable(tbody, joints) {
+  tbody.textContent = "";
+  const rows = [...joints.entries()].sort((a, b) => b[1].z - a[1].z);
+  const threshPct = (Math.log10(1 + THRESHOLD) / Z_FULL) * 100;
+
+  for (const [name, info] of rows) {
+    const status = statusOf(info.cls);
+    const pct = Math.min(100, (Math.log10(1 + Math.max(0, info.z)) / Z_FULL) * 100);
+
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    tdName.className = "jname";
+    tdName.textContent = shortName(name);
+    tr.appendChild(tdName);
+
+    const tdStatus = document.createElement("td");
+    tdStatus.className = "st-" + status;
+    tdStatus.textContent = info.cls === "healthy" ? "OK" :
+      info.cls + " " + info.severity.toFixed(1);
+    tr.appendChild(tdStatus);
+
+    const tdBar = document.createElement("td");
+    const wrap = document.createElement("div");
+    wrap.className = "zbar-wrap";
+    const bar = document.createElement("div");
+    bar.className = "zbar " + status;
+    bar.style.width = pct + "%";
+    const thresh = document.createElement("div");
+    thresh.className = "zthresh";
+    thresh.style.left = threshPct + "%";
+    wrap.appendChild(bar);
+    wrap.appendChild(thresh);
+    tdBar.appendChild(wrap);
+    tr.appendChild(tdBar);
+
+    const tdZ = document.createElement("td");
+    tdZ.className = "zval";
+    tdZ.textContent = formatZ(info.z);
+    tr.appendChild(tdZ);
+
+    tbody.appendChild(tr);
+  }
+}
+
+// ---------- render ----------
+function render(data) {
+  const { joints, isSO101, faults } = shapeResults(data);
+  if (joints.size === 0) return false;
+
+  document.getElementById("waiting").classList.add("hidden");
+  document.getElementById("content").classList.remove("hidden");
+
+  const banner = document.getElementById("banner");
+  if (faults === 0) {
+    banner.textContent = "PRE-FLIGHT PASS — CLEAR TO WALK";
+    banner.className = "pass";
+  } else {
+    banner.textContent = "NO-GO — " + faults + " FAULT" + (faults === 1 ? "" : "S");
+    banner.className = "nogo";
+  }
+
+  document.getElementById("robot-name").textContent = isSO101 ? "SO-101 5-DOF ARM" : "UNITREE G1 HUMANOID";
+  document.getElementById("schematic-title").textContent = "Airframe — " + (isSO101 ? "SO-101" : "G1");
+  document.getElementById("updated").textContent = "updated " + new Date().toLocaleTimeString();
+
+  drawSchematic(document.getElementById("schematic"), isSO101 ? SO101_LAYOUT : G1_LAYOUT, joints);
+  renderTable(document.getElementById("ztable"), joints);
+  return true;
+}
+
+// ---------- polling loop ----------
+let lastPayload = null;
+
+async function poll() {
+  try {
+    const res = await fetch("./results.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    if (text !== lastPayload) {
+      const data = JSON.parse(text);
+      if (render(data)) lastPayload = text;
+    }
+  } catch (err) {
+    if (lastPayload === null) {
+      document.getElementById("waiting").classList.remove("hidden");
+      document.getElementById("content").classList.add("hidden");
+    }
+    // keep last good render if results.json temporarily disappears mid-rewrite
+  }
+}
+
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>
