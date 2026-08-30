@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <!--
-  PEMBA PRE-FLIGHT — joint-fault visualization
+  PEMBA PRE-FLIGHT — joint-fault visualization, anatomical-plate edition.
   Serve:  python3 -m http.server 8787 -d viz    then open http://localhost:8787
   Reads ./results.json (written by `uv run python -m preflight.check ... --json viz/results.json`).
   Polls every 2 s so you can leave this open and re-run checks live.
   Single file, no external deps — venue wifi is flaky.
+
+  Style: vintage anatomical plate. Robot body is a low-poly mosaic of jittered
+  grid triangles ("tissue"); triangles near a faulted joint flush inflamed red.
 -->
 <html lang="en">
 <head>
@@ -13,32 +16,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --bg: #0b0f14;
-    --panel: #121820;
-    --line: #23303d;
-    --ink: #cfe3ee;
-    --dim: #5f7688;
-    --green: #3ddc84;
-    --red: #ff4d4f;
-    --amber: #ffb347;
-    --accent: #7fd4ff;
+    --paper: #f2ead8;
+    --paper-deep: #e9dfc8;
+    --panel: #efe6d1;
+    --line: #c9bda2;
+    --ink: #2b2620;
+    --dim: #7a6f5d;
+    --moss: #4a6b42;
+    --moss-deep: #2f4a2b;
+    --red: #a32b24;
+    --red-deep: #7e1f1a;
+    --amber: #9a6b1f;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background:
-      radial-gradient(1200px 500px at 50% -10%, #16212c 0%, var(--bg) 60%);
+      radial-gradient(1400px 700px at 50% -10%, #f6efe0 0%, var(--paper) 55%, var(--paper-deep) 100%);
     color: var(--ink);
-    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-family: "American Typewriter", "Courier New", "SF Mono", Menlo, Consolas, monospace;
     letter-spacing: 0.02em;
   }
   header {
     display: flex;
     align-items: baseline;
     gap: 18px;
-    padding: 18px 28px 10px;
-    border-bottom: 1px solid var(--line);
+    padding: 16px 28px 10px;
+    border-bottom: 2px solid var(--ink);
   }
   header h1 {
     margin: 0;
@@ -47,118 +55,129 @@
     letter-spacing: 0.22em;
     color: var(--ink);
   }
-  header h1 .peak { color: var(--accent); }
-  header .sub { color: var(--dim); font-size: 12px; }
+  header h1 .peak { color: var(--red); }
+  header .sub { color: var(--dim); font-size: 12px; font-style: italic; }
   header .meta { margin-left: auto; color: var(--dim); font-size: 12px; text-align: right; }
 
   #banner {
-    margin: 18px 28px 0;
-    padding: 18px 24px;
-    border-radius: 6px;
+    margin: 14px 28px 0;
+    padding: 14px 24px;
+    border-radius: 3px;
     font-size: clamp(26px, 4vw, 44px);
     font-weight: 800;
     letter-spacing: 0.08em;
     text-align: center;
-    border: 1px solid var(--line);
+    border: 2px solid var(--line);
     background: var(--panel);
     color: var(--dim);
   }
   #banner.pass {
-    color: var(--green);
-    border-color: rgba(61, 220, 132, 0.55);
-    background: rgba(61, 220, 132, 0.08);
-    text-shadow: 0 0 24px rgba(61, 220, 132, 0.35);
+    color: var(--moss-deep);
+    border-color: var(--moss-deep);
+    background: #dfe6cb;
   }
   #banner.nogo {
-    color: var(--red);
-    border-color: rgba(255, 77, 79, 0.6);
-    background: rgba(255, 77, 79, 0.08);
-    text-shadow: 0 0 24px rgba(255, 77, 79, 0.4);
-    animation: bannerblink 1.6s ease-in-out infinite;
+    color: var(--red-deep);
+    border-color: var(--red-deep);
+    background: #ecd2c5;
+    animation: bannerblink 1.8s ease-in-out infinite;
   }
   @keyframes bannerblink {
-    0%, 100% { box-shadow: 0 0 0 rgba(255, 77, 79, 0); }
-    50% { box-shadow: 0 0 30px rgba(255, 77, 79, 0.25); }
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(163, 43, 36, 0); }
+    50% { box-shadow: inset 0 0 0 4px rgba(163, 43, 36, 0.28); }
   }
 
+  #content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
   main {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 460px;
     gap: 18px;
-    padding: 18px 28px 28px;
+    padding: 14px 28px 22px;
     align-items: stretch;
+    flex: 1;
+    min-height: 0;
   }
+  main > .card { min-height: 0; overflow-y: auto; }
   @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
 
   .card {
     background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 14px 16px;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    padding: 12px 16px;
+    box-shadow: 3px 3px 0 rgba(43, 38, 32, 0.12);
   }
   .card h2 {
     margin: 0 0 8px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.24em;
-    color: var(--dim);
+    color: var(--ink);
     text-transform: uppercase;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 6px;
   }
   #schematic-card { display: flex; flex-direction: column; }
-  #schematic { flex: 1; min-height: 420px; }
+  #schematic { flex: 1; min-height: 0; }
   #schematic svg { width: 100%; height: 100%; display: block; }
 
-  /* SVG joint styling */
-  .bone { stroke: #3a4c5e; stroke-width: 7; stroke-linecap: round; fill: none; }
-  .bone-thin { stroke: #3a4c5e; stroke-width: 4; stroke-linecap: round; fill: none; }
-  .chassis { fill: #1b2531; stroke: #3a4c5e; stroke-width: 2; }
-  .joint-healthy { fill: var(--green); }
-  .joint-fault { fill: var(--red); }
-  .joint-unknown { fill: var(--amber); }
-  .joint-ring { fill: none; stroke: #0b0f14; stroke-width: 2; }
-  .halo {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: pulse 1.5s ease-in-out infinite;
-    pointer-events: none;
+  /* SVG anatomical plate */
+  .tissue { stroke: rgba(43, 38, 32, 0.28); stroke-width: 0.6; }
+  .part-outline {
+    fill: none; stroke: var(--ink); stroke-width: 1.4;
+    stroke-linejoin: round; opacity: 0.85;
   }
-  @keyframes pulse {
-    0%, 100% { opacity: 0.75; transform: scale(1); }
-    50%      { opacity: 0.1;  transform: scale(2.4); }
+  .sketch { stroke: rgba(43, 38, 32, 0.3); stroke-width: 1.4; stroke-linecap: round; fill: none; }
+  .inflame-pulse { animation: inflame 2.4s ease-in-out infinite; pointer-events: none; }
+  @keyframes inflame {
+    0%, 100% { opacity: 0.25; }
+    50%      { opacity: 1; }
   }
+  .joint-healthy { fill: var(--moss); stroke: var(--ink); stroke-width: 1.4; }
+  .joint-fault { fill: var(--red); stroke: var(--ink); stroke-width: 1.4; }
+  .joint-unknown { fill: var(--amber); stroke: var(--ink); stroke-width: 1.4; }
+  .leader { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.55; }
   .jlabel { font-family: inherit; font-size: 13px; fill: var(--ink); }
-  .jlabel .cls-fault { fill: var(--red); font-weight: 700; }
+  .jlabel .cls-fault { fill: var(--red-deep); font-weight: 700; }
   .jlabel .cls-unknown { fill: var(--amber); font-weight: 700; }
   .jlabel-dim { font-family: inherit; font-size: 11px; fill: var(--dim); }
-  .svg-caption { font-family: inherit; font-size: 11px; fill: var(--dim); letter-spacing: 0.2em; }
+  .svg-caption {
+    font-family: inherit; font-size: 11px; fill: var(--dim);
+    letter-spacing: 0.24em; font-style: italic;
+  }
 
   /* Side panel table */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
-    text-align: left; color: var(--dim); font-weight: 600; font-size: 11px;
+    text-align: left; color: var(--dim); font-weight: 700; font-size: 11px;
     letter-spacing: 0.12em; text-transform: uppercase;
-    padding: 4px 8px 8px 0; border-bottom: 1px solid var(--line);
+    padding: 4px 8px 8px 0; border-bottom: 1px solid var(--ink);
   }
-  td { padding: 7px 8px 7px 0; border-bottom: 1px solid #182129; vertical-align: middle; }
+  td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
   td.jname { white-space: nowrap; }
   td.zval { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .st-healthy { color: var(--green); }
-  .st-fault { color: var(--red); font-weight: 700; }
+  .st-healthy { color: var(--moss-deep); }
+  .st-fault { color: var(--red-deep); font-weight: 700; }
   .st-unknown { color: var(--amber); font-weight: 700; }
   .zbar-wrap {
     position: relative; height: 12px; width: 100%;
-    background: #0d1319; border: 1px solid var(--line); border-radius: 2px;
+    background: var(--paper-deep); border: 1px solid var(--ink); border-radius: 1px;
     overflow: hidden;
   }
-  .zbar { position: absolute; inset: 0 auto 0 0; border-radius: 1px; }
-  .zbar.healthy { background: linear-gradient(90deg, #1d7a4c, var(--green)); }
-  .zbar.fault { background: linear-gradient(90deg, #8a2426, var(--red)); }
-  .zbar.unknown { background: linear-gradient(90deg, #8a6423, var(--amber)); }
+  .zbar { position: absolute; inset: 0 auto 0 0; }
+  .zbar.healthy { background: linear-gradient(90deg, #7d926a, var(--moss)); }
+  .zbar.fault { background: linear-gradient(90deg, #c2705f, var(--red)); }
+  .zbar.unknown { background: linear-gradient(90deg, #c39c56, var(--amber)); }
   .zthresh {
     position: absolute; top: -2px; bottom: -2px; width: 2px;
-    background: var(--ink); opacity: 0.8;
+    background: var(--ink); opacity: 0.9;
   }
-  .legend { margin-top: 10px; color: var(--dim); font-size: 11px; }
+  .legend { margin-top: 10px; color: var(--dim); font-size: 11px; font-style: italic; }
 
   #waiting {
     margin: 60px auto; max-width: 640px; text-align: center;
@@ -193,7 +212,7 @@
   <div id="banner">&mdash;</div>
   <main>
     <section class="card" id="schematic-card">
-      <h2 id="schematic-title">Airframe</h2>
+      <h2 id="schematic-title">Anatomical Plate</h2>
       <div id="schematic"></div>
     </section>
     <section class="card">
@@ -212,32 +231,143 @@
 <script>
 "use strict";
 
+/* MOSAIC-CORE-BEGIN — pure logic, no DOM; extractable for node tests */
 const THRESHOLD = 6;
 const Z_FULL = Math.log10(1 + 1000);   // bar full-scale
-const SVG_NS = "http://www.w3.org/2000/svg";
+const INFLAME_R = 95;                  // px radius of inflamed tissue around a fault
+const MOSAIC_CELL = 13;                // jittered-grid cell size
 
 const SO101_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"];
 
-// ---------- schematic layouts ----------
+// deterministic hash in [0,1) so the mosaic doesn't reshuffle on every poll
+function hash2(x, y, salt) {
+  const h = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+}
+
+function pointInPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// thick outline polygon around a polyline (limb "flesh")
+function stripPolygon(pts, width) {
+  const half = width / 2, left = [], right = [];
+  for (let i = 0; i < pts.length; i++) {
+    const px = pts[i][0], py = pts[i][1];
+    let dx = 0, dy = 0;
+    if (i > 0) { dx += px - pts[i - 1][0]; dy += py - pts[i - 1][1]; }
+    if (i < pts.length - 1) { dx += pts[i + 1][0] - px; dy += pts[i + 1][1] - py; }
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    left.push([px + nx * half, py + ny * half]);
+    right.push([px - nx * half, py - ny * half]);
+  }
+  return left.concat(right.reverse());
+}
+
+function circlePolygon(cx, cy, r, n) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI;
+    pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  return pts;
+}
+
+// jittered-grid triangulation: quads split into two triangles, kept if they
+// touch the part polygon (rendering clips them to the exact silhouette)
+function buildMosaic(poly, cell, seed) {
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const x0 = Math.min.apply(null, xs) - cell, x1 = Math.max.apply(null, xs) + cell;
+  const y0 = Math.min.apply(null, ys) - cell, y1 = Math.max.apply(null, ys) + cell;
+  const nx = Math.ceil((x1 - x0) / cell), ny = Math.ceil((y1 - y0) / cell);
+
+  const grid = [];
+  for (let j = 0; j <= ny; j++) {
+    for (let i = 0; i <= nx; i++) {
+      grid[j * (nx + 1) + i] = [
+        x0 + i * cell + (hash2(i, j, seed) - 0.5) * cell * 0.7,
+        y0 + j * cell + (hash2(i, j, seed + 31) - 0.5) * cell * 0.7,
+      ];
+    }
+  }
+
+  const tris = [];
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const a = grid[j * (nx + 1) + i], b = grid[j * (nx + 1) + i + 1];
+      const c = grid[(j + 1) * (nx + 1) + i + 1], d = grid[(j + 1) * (nx + 1) + i];
+      const pair = hash2(i, j, seed + 77) < 0.5 ? [[a, b, c], [a, c, d]] : [[a, b, d], [b, c, d]];
+      for (const t of pair) {
+        const cx = (t[0][0] + t[1][0] + t[2][0]) / 3;
+        const cy = (t[0][1] + t[1][1] + t[2][1]) / 3;
+        if (pointInPolygon(cx, cy, poly) || t.some(p => pointInPolygon(p[0], p[1], poly))) {
+          tris.push({ pts: t, cx, cy });
+        }
+      }
+    }
+  }
+  return tris;
+}
+
+// tissue tinting: parchment base, flushed toward inflamed red near faults
+const HEALTHY_A = [217, 199, 168];   // #d9c7a8
+const HEALTHY_B = [196, 169, 138];   // #c4a98a
+const FAULT_RGB = [181, 55, 47];     // #b5372f
+const UNKNOWN_RGB = [192, 138, 46];  // amber
+
+function mixRgb(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+// probes: [{x, y, cls, z}] — layout coords of every probed joint
+function triangleTint(cx, cy, probes, seed) {
+  let rgb = mixRgb(HEALTHY_A, HEALTHY_B, hash2(cx, cy, seed));
+  let w = 0, cls = "healthy";
+  for (const p of probes) {
+    if (p.cls === "healthy") continue;
+    const d = Math.hypot(cx - p.x, cy - p.y);
+    if (d >= INFLAME_R) continue;
+    const mag = Math.max(0.4, Math.min(1, Math.abs(p.z) / THRESHOLD));
+    const s = (1 - d / INFLAME_R) * mag;
+    if (s > w) { w = s; cls = p.cls === "unknown" ? "unknown" : "fault"; }
+  }
+  if (w > 0) rgb = mixRgb(rgb, cls === "unknown" ? UNKNOWN_RGB : FAULT_RGB, Math.min(1, w * 1.2));
+  const l = 1 + (hash2(cx, cy, seed + 13) - 0.5) * 0.12;  // ±6% lightness variance
+  const out = rgb.map(c => Math.max(0, Math.min(255, Math.round(c * l))));
+  return { fill: "rgb(" + out.join(",") + ")", inflame: w, cls };
+}
+
+// ---------- plate layouts ----------
 // G1 front view: robot-left drawn on viewer-right (facing the audience).
 const G1_LAYOUT = {
   viewBox: "0 0 460 560",
-  caption: "UNITREE G1 — FRONT VIEW",
-  bones: [
-    // torso spine + pelvis + shoulder bar
-    ["M230 96 L230 268"],
-    ["M172 130 L288 130"],                   // clavicle bar
-    ["M196 280 L264 280"],                   // pelvis bar
-    // robot-left arm (viewer right)
-    ["M288 130 L318 205 L332 272"],
-    // robot-right arm (viewer left)
-    ["M172 130 L142 205 L128 272"],
-    // robot-left leg (viewer right)
-    ["M264 280 L272 382 L276 478 L300 478"],
-    // robot-right leg (viewer left)
-    ["M196 280 L188 382 L184 478 L160 478"],
+  caption: "UNITREE G1 — ANATOMICAL PLATE No. 1",
+  parts: [
+    { name: "head",   poly: circlePolygon(230, 62, 26, 10) },
+    { name: "torso",  poly: [[168, 112], [230, 104], [292, 112], [296, 152], [272, 292], [230, 298], [188, 292], [164, 152]] },
+    { name: "l-arm",  poly: stripPolygon([[288, 130], [318, 205], [332, 272]], 18) },
+    { name: "r-arm",  poly: stripPolygon([[172, 130], [142, 205], [128, 272]], 18) },
+    { name: "l-leg",  poly: stripPolygon([[264, 284], [272, 382], [276, 470]], 22) },
+    { name: "r-leg",  poly: stripPolygon([[196, 284], [188, 382], [184, 470]], 22) },
+    { name: "l-foot", poly: [[268, 466], [304, 466], [304, 486], [268, 486]] },
+    { name: "r-foot", poly: [[156, 466], [192, 466], [192, 486], [156, 486]] },
   ],
-  head: { cx: 230, cy: 62, r: 24 },
+  sketch: [
+    "M230 96 L230 268",                        // spine
+    "M172 130 L288 130",                       // clavicle bar
+    "M196 280 L264 280",                       // pelvis bar
+    "M288 130 L318 205 L332 272",              // robot-left arm
+    "M172 130 L142 205 L128 272",              // robot-right arm
+    "M264 280 L272 382 L276 478",              // robot-left leg
+    "M196 280 L188 382 L184 478",              // robot-right leg
+  ],
   joints: {
     waist_yaw_joint:            { x: 230, y: 232, side: "right" },
     left_shoulder_pitch_joint:  { x: 288, y: 130, side: "right" },
@@ -256,17 +386,21 @@ const G1_LAYOUT = {
 // SO-101 side view: base at lower-left, arm reaches up and out to gripper.
 const SO101_LAYOUT = {
   viewBox: "0 0 460 560",
-  caption: "SO-101 ARM — SIDE VIEW",
-  base: { x: 50, y: 470, w: 130, h: 26 },
-  bones: [
-    ["M115 470 L115 430"],                  // base column
-    ["M115 430 L115 372"],                  // pan -> lift
-    ["M115 372 L215 210"],                  // upper arm
-    ["M215 210 L330 285"],                  // forearm
-    ["M330 285 L378 322"],                  // wrist link
-    ["M378 322 L412 348"],                  // roll -> gripper
-    ["M412 348 L438 336", "thin"],          // gripper claw
-    ["M412 348 L432 372", "thin"],
+  caption: "SO-101 ARM — ANATOMICAL PLATE No. 2",
+  parts: [
+    { name: "base",    poly: [[50, 470], [180, 470], [180, 496], [50, 496]] },
+    { name: "column",  poly: stripPolygon([[115, 470], [115, 428]], 26) },
+    { name: "link",    poly: stripPolygon([[115, 432], [115, 372]], 20) },
+    { name: "upper",   poly: stripPolygon([[115, 372], [215, 210]], 18) },
+    { name: "forearm", poly: stripPolygon([[215, 210], [330, 285]], 15) },
+    { name: "wrist",   poly: stripPolygon([[330, 285], [378, 322]], 12) },
+    { name: "roll",    poly: stripPolygon([[378, 322], [412, 348]], 10) },
+  ],
+  sketch: [
+    "M115 470 L115 372",
+    "M115 372 L215 210 L330 285 L378 322 L412 348",
+    "M412 348 L438 336",                        // gripper claws
+    "M412 348 L432 372",
   ],
   joints: {
     shoulder_pan:  { x: 115, y: 430, side: "right" },
@@ -295,7 +429,7 @@ function shapeResults(data) {
   const joints = new Map();  // name -> {cls, severity, z}
   for (const v of verdicts) {
     if (!Array.isArray(v) || v.length < 2) continue;
-    const [joint, cls, severity] = v;
+    const joint = v[0], cls = v[1], severity = v[2];
     joints.set(String(joint), {
       cls: String(cls || "unknown"),
       severity: Number(severity) || 0,
@@ -316,7 +450,20 @@ function shapeResults(data) {
   return { joints, isSO101, faults };
 }
 
+// layout joints ∩ probed joints -> tint probes with plate coordinates
+function probesFor(layout, joints) {
+  const probes = [];
+  for (const [name, info] of joints) {
+    const pos = layout.joints[name];
+    if (pos) probes.push({ x: pos.x, y: pos.y, cls: info.cls, z: info.z });
+  }
+  return probes;
+}
+/* MOSAIC-CORE-END */
+
 // ---------- SVG helpers ----------
+const SVG_NS = "http://www.w3.org/2000/svg";
+
 function el(tag, attrs, parent) {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
@@ -324,24 +471,33 @@ function el(tag, attrs, parent) {
   return node;
 }
 
+function polyToPath(poly) {
+  return "M" + poly.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L") + " Z";
+}
+
+function triToPoints(t) {
+  return t.pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+}
+
 function drawJoint(svg, pos, name, info) {
   const status = statusOf(info.cls);
-  const color = status === "healthy" ? "var(--green)" : status === "fault" ? "var(--red)" : "var(--amber)";
+  el("circle", { cx: pos.x, cy: pos.y, r: status === "healthy" ? 6 : 8, class: "joint-" + status }, svg);
 
   if (status !== "healthy") {
-    const halo = el("circle", {
-      cx: pos.x, cy: pos.y, r: 13,
-      fill: color, filter: "url(#soft-blur)", class: "halo",
-    }, svg);
-    halo.style.animationDelay = ((pos.x + pos.y) % 7) / 10 + "s";
-  }
-  el("circle", { cx: pos.x, cy: pos.y, r: 9, class: "joint-" + status }, svg);
-  el("circle", { cx: pos.x, cy: pos.y, r: 9, class: "joint-ring" }, svg);
-
-  if (status !== "healthy") {
-    const onRight = pos.side !== "left";
-    const tx = pos.x + (onRight ? 20 : -20);
+    // labels flip inward from the viewBox midline so they never clip the svg edge
+    const onRight = pos.x <= 230;
+    const sign = onRight ? 1 : -1;
+    const tx = pos.x + sign * 26;
     const anchor = onRight ? "start" : "end";
+
+    // hand-drawn-style annotation leader from joint to label
+    el("path", {
+      d: "M" + (pos.x + sign * 10) + " " + (pos.y - 3) +
+         " Q" + (pos.x + sign * 18) + " " + (pos.y - 14) +
+         " " + (tx - sign * 4) + " " + (pos.y - 6),
+      class: "leader",
+    }, svg);
+
     const label = el("text", { x: tx, y: pos.y - 2, "text-anchor": anchor, class: "jlabel" }, svg);
     const t1 = el("tspan", {}, label);
     t1.textContent = shortName(name) + " · ";
@@ -355,21 +511,46 @@ function drawJoint(svg, pos, name, info) {
 function drawSchematic(container, layout, joints) {
   container.textContent = "";
   const svg = el("svg", { viewBox: layout.viewBox, preserveAspectRatio: "xMidYMid meet" });
+  const probes = probesFor(layout, joints);
 
   const defs = el("defs", {}, svg);
-  const filter = el("filter", { id: "soft-blur", x: "-150%", y: "-150%", width: "400%", height: "400%" }, defs);
-  el("feGaussianBlur", { stdDeviation: 5 }, filter);
+  const grain = el("filter", { id: "grain" }, defs);
+  el("feTurbulence", { type: "fractalNoise", baseFrequency: "0.8", numOctaves: "2" }, grain);
+  el("feColorMatrix", {
+    type: "matrix",
+    values: "0 0 0 0 0.17  0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0.4 0",
+  }, grain);
 
-  if (layout.base) {
-    el("rect", { x: layout.base.x, y: layout.base.y, width: layout.base.w, height: layout.base.h, rx: 4, class: "chassis" }, svg);
-  }
-  for (const [d, style] of layout.bones) {
-    el("path", { d, class: style === "thin" ? "bone-thin" : "bone" }, svg);
-  }
-  if (layout.head) {
-    el("circle", { cx: layout.head.cx, cy: layout.head.cy, r: layout.head.r, class: "chassis" }, svg);
-    el("path", { d: `M${layout.head.cx} ${layout.head.cy + layout.head.r} L${layout.head.cx} ${layout.head.cy + layout.head.r + 10}`, class: "bone-thin" }, svg);
-  }
+  layout.parts.forEach((part, pi) => {
+    el("clipPath", { id: "clip-" + part.name }, defs)
+      .appendChild(el("path", { d: polyToPath(part.poly) }));
+
+    const seed = pi * 101 + 7;
+    const tris = buildMosaic(part.poly, MOSAIC_CELL, seed);
+    const g = el("g", { "clip-path": "url(#clip-" + part.name + ")" }, svg);
+    const overlay = el("g", { class: "inflame-pulse" });
+
+    for (const t of tris) {
+      const tint = triangleTint(t.cx, t.cy, probes, seed);
+      el("polygon", { points: triToPoints(t), fill: tint.fill, class: "tissue" }, g);
+      if (tint.inflame > 0.12) {
+        el("polygon", {
+          points: triToPoints(t),
+          fill: tint.cls === "unknown" ? "rgb(192,138,46)" : "rgb(181,55,47)",
+          "fill-opacity": (0.5 * tint.inflame).toFixed(2),
+        }, overlay);
+      }
+    }
+    if (overlay.childNodes.length > 0) g.appendChild(overlay);
+  });
+
+  // faint interior "bone sketch" lines, then silhouette ink outlines
+  for (const d of layout.sketch) el("path", { d, class: "sketch" }, svg);
+  for (const part of layout.parts) el("path", { d: polyToPath(part.poly), class: "part-outline" }, svg);
+
+  // paper grain over the tissue, under the labels
+  el("rect", { x: 0, y: 0, width: 460, height: 560, filter: "url(#grain)", opacity: "0.45" }, svg);
+
   const cap = el("text", { x: 230, y: 545, "text-anchor": "middle", class: "svg-caption" }, svg);
   cap.textContent = layout.caption;
 
@@ -450,7 +631,7 @@ function render(data) {
   }
 
   document.getElementById("robot-name").textContent = isSO101 ? "SO-101 5-DOF ARM" : "UNITREE G1 HUMANOID";
-  document.getElementById("schematic-title").textContent = "Airframe — " + (isSO101 ? "SO-101" : "G1");
+  document.getElementById("schematic-title").textContent = "Anatomical Plate — " + (isSO101 ? "SO-101" : "G1");
   document.getElementById("updated").textContent = "updated " + new Date().toLocaleTimeString();
 
   drawSchematic(document.getElementById("schematic"), isSO101 ? SO101_LAYOUT : G1_LAYOUT, joints);
