@@ -4,6 +4,12 @@
 
 > Robot Everest's waist-lock incident (livestream 25:40): a mechanical fault nobody noticed until the robot was above basecamp. A stock kp=500 position controller **muscles through** most joint faults — the error signal is invisible. Pemba probes at **kp=40**, where friction, stiffness, obstruction, and derating all leave clear signatures.
 
+| ![PASS — G1 anatomical plate](assets/viz_pass_g1.png) | ![NO-GO — SO-101 zip-tie](assets/viz_nogo_so101.png) |
+|:--:|:--:|
+| *Real G1, all 11 joints nominal* | *Real SO-101, elbow zip-tied on camera: obstruction, z=15.1* |
+
+The basecamp instrument panel (`viz/`) renders the robot as an anatomical plate — faulted joints show as inflamed tissue, telemetry lists worst-pose z per joint. It polls `results.json`, so it live-updates as the check runs.
+
 ![Brown-out detection](assets/brownout_detection.png)
 
 *Not staged: during our real G1 gantry session, the battery died mid-collection. Tier-1 flagged the browning-out elbow at z=20.9 against a healthy median of z≈1.2 — the system caught a real, unplanned fault before we did.*
@@ -62,6 +68,12 @@ uv run python -m preflight.fit_baseline data/d1_cold --out data/baseline_g1.json
 
 # On the robot (Jetson Orin, after dev-mode / green face light):
 python3 preflight/real/g1_probe.py --iface enP8p1s0 --reps 5 --out data/d1
+
+# Voice — ask "Pemba, how do you feel?" (console mode, local mic/speaker):
+uv run --extra voice python preflight/voice/agent.py console
+
+# Basecamp instrument panel:
+python3 -m http.server 8787 -d viz   # then open http://localhost:8787
 ```
 
 Exit code 0 = "Pre-flight PASS. Clear to walk." · 1 = NO-GO with named faults.
@@ -76,6 +88,25 @@ The probe damps every joint (kp=0, kd=8) on **every** exit path — SIGINT, SIGT
 - First hardware verdict: **"Pre-flight PASS. Clear to walk."** on all 11 joints
 - Live catch: two battery brown-outs flagged at z=21–186 (see figure above)
 - Motor temps 39→56°C across the session, recorded per-probe (`assets/session_temps.png`)
+
+## Live fault injection (SO-101 arm, on camera)
+
+Filmed end-to-end at the venue: healthy probe → **PASS** → elbow zip-tied on
+camera → re-probe → **"elbow flex: motion obstructed (severe) — check for
+transport lock or snag. NO-GO."** (z=15.1 vs threshold 6). The tight-tie case
+initially slipped past tier-1 — the coverage MAD floor was diluting a 73%
+range collapse — so we swept the floor against both robots' healthy holdouts
+and tightened it (0.15→0.05), a fix validated on healthy data, not tuned on
+the fault.
+
+## Voice: "Pemba, how do you feel?" (LiveKit challenge)
+
+`preflight/voice/agent.py` — a LiveKit Agents voice loop (Deepgram STT →
+gpt-4o-mini → OpenAI TTS, multilingual turn detector). Ask Pemba how it feels
+and it runs the real check as a tool call and speaks the verdict, faults
+verbatim: *"Pre-flight check failed. Elbow flex: motion obstructed (severe) —
+check for transport lock or snag. Advise not to walk."* Joints and baseline
+auto-detect from the trace source, so the same agent voices both robots.
 
 ## Credits
 
