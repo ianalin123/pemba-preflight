@@ -12,7 +12,7 @@
 
 Each joint is driven with a 0.25 rad, 0.5 Hz sinusoid for 4 s at low PD gains (kp=40, kd=2), in two poses (neutral + gravity-loaded). From each trace we extract 5 features: `rms_err, peak_err, coverage, rms_tau, phase_lag`.
 
-- **Tier 1 — anomaly (go/no-go):** robust z-score (median/MAD) per joint-pose against the robot's **own** healthy baseline, collected on real hardware. Immune to the sim2real gap by construction. Threshold z=6; healthy leave-one-out holdout: **54/58 pass, median z=1.2**.
+- **Tier 1 — anomaly (go/no-go):** robust z-score (median/MAD) per joint-pose against the robot's **own** healthy baseline, collected on real hardware. Immune to the sim2real gap by construction. Threshold z=6; healthy leave-one-out holdout: **52/58 pass (G1), 101/102 (SO-101), median z=1.4** — thresholds biased toward false alarms over misses, because a pre-flight miss is the Everest waist-lock.
 - **Tier 2 — diagnosis (named fault + severity):** HistGradientBoosting classifier + severity regressor trained on a **3,960-trace MuJoCo corpus** (Modal fan-out; 4 fault classes × severities × 11 joints × 2 poses). Trains on *features*, not raw traces — the sim2real defense. **98.3% cross-validated accuracy.**
 
 ```

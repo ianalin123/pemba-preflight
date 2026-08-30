@@ -8,8 +8,12 @@ THRESHOLD = 6.0  # max |robust z|; tune on healthy holdout, favor low false-posi
 
 # Floor MAD at a fraction of |median| so few-rep keys can't produce degenerate
 # z-scores. Values from real D1 rep-to-rep spread (median↔p90 rel-MAD per feature);
-# phase_lag is inherently noisy on hardware so it gets a wide floor.
-MAD_REL_FLOOR = {"rms_err": 0.15, "peak_err": 0.15, "coverage": 0.15,
+# phase_lag is inherently noisy on hardware so it gets a wide floor. Coverage gets
+# a tighter floor (0.05): swept on both robots' healthy LOO holdouts — 0.15 diluted
+# a real obstruction (73% coverage collapse scored z=4.9) while 0.05 catches it at
+# z=14.6 and costs only two borderline G1 healthy reps. Pre-flight favors misses
+# on the false-positive side, not the false-negative side.
+MAD_REL_FLOOR = {"rms_err": 0.15, "peak_err": 0.15, "coverage": 0.05,
                  "rms_tau": 0.15, "phase_lag": 1.0}
 
 
