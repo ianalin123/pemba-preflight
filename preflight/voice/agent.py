@@ -10,6 +10,10 @@ Required env vars (put them in .env.local at the repo root):
     DEEPGRAM_API_KEY    for STT
 Optional:
     PREFLIGHT_SOURCE_DIR  npz trace dir for the check (default: data/d1_cold)
+    PREFLIGHT_BASELINE    tier-1 baseline JSON (default: data/baseline_g1.json)
+Joints are auto-detected from the npz filenames in the source dir, so pointing
+both vars at SO-101 data (e.g. d2_film_fault + baseline_so101.json) lets Pemba
+voice the zip-tie NO-GO demo.
 
 Run console mode (local mic/speaker, no room needed):
     uv run --extra voice python preflight/voice/agent.py console
@@ -53,7 +57,8 @@ When the user asks how you feel, asks you to run a self-check, or asks for a
 pre-flight check, call the run_preflight tool. Relay its verdict
 conversationally in your own voice, but report any named joint faults
 verbatim — exact joint names and fault words, no paraphrasing of faults.
-If the check passes, say so plainly and confirm you are clear to walk.
+If the check passes, say how many joints you probed and that all are nominal,
+then confirm you are clear to walk — e.g. "Eleven joints probed, all nominal."
 If it is a NO-GO, name every faulted joint and advise not to walk.
 For anything else, stay in character and keep answers brief."""
 
@@ -67,12 +72,16 @@ class Pemba(Agent):
         """Run the robot's proprioceptive pre-flight self-check over all
         joints. Returns per-joint verdict lines and the final GO / NO-GO."""
         source_dir = os.environ.get("PREFLIGHT_SOURCE_DIR", "data/d1_cold")
+        baseline = os.environ.get("PREFLIGHT_BASELINE", "data/baseline_g1.json")
+        joints = sorted(
+            {f.name.split("_off")[0] for f in (REPO_ROOT / source_dir).glob("*.npz")}
+        ) or ALL_JOINTS
         result = subprocess.run(
             [
                 sys.executable, "-m", "preflight.check",
                 "--source", f"npz:{source_dir}",
-                "--baseline", "data/baseline_g1.json",
-                "--joints", *ALL_JOINTS,
+                "--baseline", baseline,
+                "--joints", *joints,
             ],
             cwd=REPO_ROOT,
             capture_output=True,
