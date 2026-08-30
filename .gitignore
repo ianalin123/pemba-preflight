@@ -1,0 +1,8 @@
+.venv/
+data/
+docs/
+mujoco_menagerie/
+__pycache__/
+*.npz
+*.pkl
+.DS_Store
