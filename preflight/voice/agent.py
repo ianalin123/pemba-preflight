@@ -37,9 +37,9 @@ from livekit.agents import (
 from livekit.plugins import deepgram, openai, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from preflight.protocol import G1_PROBES
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+from preflight.protocol import G1_PROBES  # noqa: E402
 ALL_JOINTS = [p.joint for p in G1_PROBES]
 
 load_dotenv(REPO_ROOT / ".env.local")
